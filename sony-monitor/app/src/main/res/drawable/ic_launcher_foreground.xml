@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- جسم كاميرا مبسّط داخل المنطقة الآمنة للأيقونة -->
+    <group android:translateX="18" android:translateY="30">
+        <path
+            android:fillColor="#E6E8EC"
+            android:pathData="M12,10 h20 l6,-6 h12 l6,6 h10 a6,6 0 0 1 6,6 v30 a6,6 0 0 1 -6,6 H12 a6,6 0 0 1 -6,-6 V16 a6,6 0 0 1 6,-6 z" />
+        <path
+            android:fillColor="#0B0B0D"
+            android:pathData="M42,20 m-13,0 a13,13 0 1 0 26,0 a13,13 0 1 0 -26,0 z" />
+        <path
+            android:fillColor="#F2B705"
+            android:pathData="M42,20 m-7,0 a7,7 0 1 0 14,0 a7,7 0 1 0 -14,0 z" />
+    </group>
+</vector>

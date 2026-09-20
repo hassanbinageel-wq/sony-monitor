@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- كاميرات Sony في وضع نقطة الوصول (AP) تستخدم HTTP غير مشفّر على شبكتها المحلية.
+         نسمح بالنص الصريح لعناوين الشبكة المحلية للكاميرا فقط. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.122.1</domain>
+        <domain includeSubdomains="true">192.168.0.1</domain>
+        <domain includeSubdomains="true">10.0.0.1</domain>
+        <domain includeSubdomains="true">192.168.122.0</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <title>مونيتور Sony</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- طبقة العرض الحي -->
+  <div id="stage">
+    <div id="flipWrap">
+      <canvas id="glcanvas"></canvas>
+    </div>
+    <img id="refOverlay" alt="" />
+    <!-- أدلة التأطير (SVG فوق البث) -->
+    <svg id="guides" preserveAspectRatio="none"></svg>
+
+    <!-- شارة مصدر البث -->
+    <div id="sourceBadge" class="badge hidden"></div>
+  </div>
+
+  <!-- شريط الحالة العلوي -->
+  <header id="topbar">
+    <div class="statusGroup">
+      <span id="connDot" class="dot dot-off"></span>
+      <span id="connText">غير متصل</span>
+    </div>
+    <div class="statusGroup" id="recGroup">
+      <span id="recDot" class="dot dot-rec hidden"></span>
+      <span id="recTime" class="hidden">00:00</span>
+    </div>
+    <div class="statusGroup metrics">
+      <span id="fps" title="معدّل الإطارات المقيس فعليًا على الهاتف">— fps</span>
+      <span id="latency" title="زمن معالجة الإطار على الهاتف (ليس تأخير الزجاج إلى الزجاج)">— ms</span>
+    </div>
+    <div class="statusGroup batteries">
+      <span id="camBatt" title="بطارية الكاميرا">📷 —</span>
+      <span id="phoneBatt" title="بطارية الهاتف">📱 —</span>
+      <span id="camCard" title="بطاقة الكاميرا">🗂 —</span>
+    </div>
+  </header>
+
+  <!-- زر إخفاء كل الأزرار بلمسة -->
+  <button id="hideUiBtn" class="floatbtn" title="إظهار/إخفاء الأزرار">⤢</button>
+
+  <!-- شريط الأوضاع + الأدوات (يسار) -->
+  <nav id="toolrail">
+    <button data-panel="connect" class="tool active" title="الاتصال">🔌</button>
+    <button data-panel="scopes" class="tool" title="أدوات المراقبة">📊</button>
+    <button data-panel="lut" class="tool" title="LUT">🎨</button>
+    <button data-panel="focus" class="tool" title="التركيز والتأطير">🎯</button>
+    <button data-panel="control" class="tool" title="التحكم بالكاميرا">🎬</button>
+    <button data-panel="files" class="tool" title="الملفات والمشاريع">🗂️</button>
+    <button data-panel="settings" class="tool" title="الإعدادات">⚙️</button>
+  </nav>
+
+  <!-- اللوحات -->
+  <section id="panelHost" class="hidden">
+    <div class="panelHeader">
+      <span id="panelTitle">لوحة</span>
+      <button id="panelClose" class="ghost">إغلاق ✕</button>
+    </div>
+    <div id="panelBody"></div>
+  </section>
+
+  <!-- تنبيهات -->
+  <div id="toast" class="hidden"></div>
+
+  <!-- قوالب اللوحات -->
+  <template id="tpl-connect">
+    <div class="stack">
+      <p class="note">وصّل الهاتف بشبكة Wi‑Fi الخاصة بالكاميرا من إعدادات Android، ثم فعّل «التحكّم بالهاتف/Ctrl w/ Smartphone» في الكاميرا، ثم اضغط اتصال.</p>
+      <button id="btnConnect" class="primary big">اتصال بالكاميرا</button>
+      <button id="btnDisconnect" class="danger" disabled>قطع الاتصال</button>
+      <div class="hr"></div>
+      <label class="row"><span>مصدر الاختبار (نمط اختبار — ليس بثًا من الكاميرا)</span>
+        <input type="checkbox" id="chkTest" /></label>
+      <p class="note small">نمط الاختبار يتيح تجربة أدوات المونيتور و LUT على الهاتف قبل توفّر الكاميرا. سيظهر تنبيه واضح أنه ليس بثًا حقيقيًا.</p>
+      <div id="capBox" class="capbox hidden">
+        <div class="capTitle">قدرات الكاميرا المكتشَفة</div>
+        <ul id="capList"></ul>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-scopes">
+    <div class="stack">
+      <label class="row"><span>Histogram (سطوع)</span><input type="checkbox" id="scHist" checked></label>
+      <label class="row"><span>RGB Histogram</span><input type="checkbox" id="scHistRGB"></label>
+      <label class="row"><span>Waveform</span><input type="checkbox" id="scWave"></label>
+      <label class="row"><span>RGB Parade</span><input type="checkbox" id="scParade"></label>
+      <label class="row"><span>Zebra (مناطق ساطعة)</span><input type="checkbox" id="scZebra"></label>
+      <label class="row"><span>حد Zebra %</span><input type="range" id="zebraTh" min="50" max="109" value="95"><b id="zebraThV">95</b></label>
+      <label class="row"><span>False Color</span><input type="checkbox" id="scFalse"></label>
+      <label class="row"><span>تحذير احتراق الإضاءات</span><input type="checkbox" id="scClip" checked></label>
+      <label class="row"><span>تحذير الظلال (تحت %)</span><input type="range" id="crushTh" min="0" max="30" value="4"><b id="crushThV">4</b></label>
+      <div class="hr"></div>
+      <label class="row"><span>حساب الأدوات</span>
+        <select id="scopeSource">
+          <option value="pre">قبل LUT (إشارة الكاميرا) — الافتراضي</option>
+          <option value="post">بعد LUT (المعاينة)</option>
+        </select></label>
+      <p class="note small">هذه القيم تُحسب من بث المعاينة المضغوط الواصل للهاتف، وقد تختلف عن RAW/Log/ملف الفيديو داخل الكاميرا. الوحدات تقريبية (0–100% من قيمة البِكسل) وليست قياسًا مُعايَرًا.</p>
+      <div id="scopeCanvases"></div>
+    </div>
+  </template>
+
+  <template id="tpl-lut">
+    <div class="stack">
+      <label class="row"><span>تفعيل LUT</span><input type="checkbox" id="lutOn"></label>
+      <label class="row"><span>الشدّة</span><input type="range" id="lutIntensity" min="0" max="100" value="100"><b id="lutIntensityV">100%</b></label>
+      <button id="btnLutCompare" class="ghost">اضغط باستمرار: مقارنة قبل/بعد</button>
+      <div class="hr"></div>
+      <input type="file" id="lutFile" accept=".cube" hidden />
+      <button id="btnLutImport" class="primary">استيراد ملف ‎.cube</button>
+      <div id="lutList" class="lutlist"></div>
+      <p class="note small">مهم: LUT هنا للمعاينة على شاشة الهاتف فقط، ولا يُطبَّق على الصور/الفيديو المسجّلة داخل الكاميرا.</p>
+      <p class="note small" id="lutColorNote">البث الواصل غالبًا معالَج بالفعل بملف صورة الكاميرا (Picture Profile). لذلك قد لا يعرض LUT النتيجة النهائية بدقة، وقد يحدث تحويل لوني مزدوج.</p>
+    </div>
+  </template>
+
+  <template id="tpl-focus">
+    <div class="stack">
+      <label class="row"><span>تكبير للفحص</span><input type="range" id="zoom" min="100" max="400" value="100"><b id="zoomV">1.0x</b></label>
+      <p class="note small">التكبير رقمي داخل الهاتف، لا يضيف تفاصيل غير موجودة في البث.</p>
+      <label class="row"><span>Focus Peaking</span><input type="checkbox" id="peakOn"></label>
+      <label class="row"><span>لون Peaking</span>
+        <select id="peakColor"><option value="r">أحمر</option><option value="g">أخضر</option><option value="b">أزرق</option><option value="y">أصفر</option></select></label>
+      <label class="row"><span>شدّة Peaking</span><input type="range" id="peakStr" min="5" max="80" value="30"><b id="peakStrV">30</b></label>
+      <p class="note small">Peaking مؤشّر مساعد على المعاينة، وليس تأكيدًا نهائيًا لحدّة الملف المسجّل.</p>
+      <div class="hr"></div>
+      <label class="row"><span>شبكة الأثلاث</span><input type="checkbox" id="gThirds"></label>
+      <label class="row"><span>خطوط المنتصف</span><input type="checkbox" id="gCenter"></label>
+      <label class="row"><span>أدلة النسبة</span>
+        <select id="gAspect"><option value="">بدون</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="2.39:1">2.39:1</option></select></label>
+      <label class="row"><span>Safe Area للنصوص</span><input type="checkbox" id="gSafe"></label>
+      <label class="row"><span>شفافية الأدلة</span><input type="range" id="gOpacity" min="10" max="100" value="60"><b id="gOpacityV">60%</b></label>
+      <div class="hr"></div>
+      <label class="row"><span>قلب المعاينة أفقيًا</span><input type="checkbox" id="flipH"></label>
+      <span class="note small">القلب يغيّر عرض الهاتف فقط.</span>
+      <div class="hr"></div>
+      <button id="btnSetRef" class="ghost">التقط صورة مرجعية من المعاينة</button>
+      <label class="row"><span>عرض الصورة المرجعية</span><input type="checkbox" id="refOn"></label>
+      <label class="row"><span>شفافية المرجع</span><input type="range" id="refOpacity" min="10" max="90" value="50"><b id="refOpacityV">50%</b></label>
+    </div>
+  </template>
+
+  <template id="tpl-control">
+    <div class="stack">
+      <div class="grid2">
+        <button id="btnShot" class="primary big" disabled>التقاط صورة</button>
+        <button id="btnRec" class="rec big" disabled>بدء تسجيل</button>
+      </div>
+      <p class="note small" id="controlCaps">سيتم تفعيل الأزرار المدعومة فقط بعد الاتصال واكتشاف قدرات الكاميرا.</p>
+      <div class="hr"></div>
+      <div class="settingRow"><label>ISO</label><select id="setIso" disabled></select></div>
+      <div class="settingRow"><label>سرعة الغالق</label><select id="setShutter" disabled></select></div>
+      <div class="settingRow"><label>فتحة العدسة</label><select id="setF" disabled></select></div>
+      <div class="settingRow"><label>توازن الأبيض</label><select id="setWB" disabled></select></div>
+      <p class="note small">بعد إرسال أي أمر تظهر حالته الفعلية أو سبب الفشل. لا نغيّر القيمة الظاهرة قبل تأكيد الكاميرا.</p>
+      <div id="actionLog" class="log"></div>
+    </div>
+  </template>
+
+  <template id="tpl-files">
+    <div class="stack">
+      <div class="tabs">
+        <button class="tab active" data-tab="browse">ملفات الكاميرا</button>
+        <button class="tab" data-tab="projects">المشاريع</button>
+      </div>
+      <div id="filesBrowse">
+        <button id="btnBrowse" class="primary" disabled>استعراض ملفات الكاميرا</button>
+        <p class="note small">استعراض/استيراد ملفات الكاميرا عبر هذا البروتوكول يتطلّب تبديل الكاميرا لوضع «نقل المحتوى» ولا يعمل أثناء البث الحي. الحالة على a7 III: <b>يحتاج اختبارًا على كاميرا فعلية</b>. الواجهة جاهزة والأمر يُرسَل فعليًا ويُبلّغ بنتيجته دون ادّعاء.</p>
+        <div id="browseList"></div>
+      </div>
+      <div id="filesProjects" class="hidden">
+        <div class="row"><input id="projName" placeholder="اسم المشروع" /><button id="btnAddProj" class="primary">إضافة</button></div>
+        <div id="projList"></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-settings">
+    <div class="stack">
+      <label class="row"><span>إبقاء شاشة الهاتف مضاءة</span><input type="checkbox" id="keepOn" checked></label>
+      <label class="row"><span>حجم بث الكاميرا المفضّل</span>
+        <select id="lvSize"><option value="L">أكبر (L)</option><option value="M">متوسط (M)</option></select></label>
+      <label class="row"><span>معدّل تحديث الأدوات</span>
+        <select id="scopeRate"><option value="3">كل 3 إطارات</option><option value="2">كل إطارين</option><option value="1">كل إطار</option></select></label>
+      <div class="hr"></div>
+      <button id="btnSaveLayout" class="primary">حفظ توزيع الأدوات الحالي</button>
+      <button id="btnResetLayout" class="ghost">استرجاع الإعدادات الافتراضية</button>
+      <div class="hr"></div>
+      <p class="note small">قياس التأخير: نعرض معدّل الإطارات وزمن المعالجة على الهاتف فقط. تأخير «الزجاج إلى الزجاج» يحتاج قياسًا بطريقة التصفيق/الوميض (مشروحة في README) ولا نزعم أن البث «لحظي بلا تأخير».</p>
+      <div id="about" class="note small"></div>
+    </div>
+  </template>
+
+  <script src="js/store.js"></script>
+  <script src="js/lut.js"></script>
+  <script src="js/gl.js"></script>
+  <script src="js/scopes.js"></script>
+  <script src="js/testpattern.js"></script>
+  <script src="js/bridge.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
